@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+
+    "rootDir": "src",
+    "outDir": "dist",
+
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+
+    "sourceMap": true,
+
+    "lib": ["ES2020"],              // Node 18+ a fetch global via @types/node
+    "types": ["node"],              // important pour les types Node
+    "moduleDetection": "force",
+    "isolatedModules": true
+  },
+  "include": ["src"]
+}
