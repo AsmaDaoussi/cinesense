@@ -33,3 +33,29 @@ export async function searchMovies({ q, year, genre }:{
   CACHE.set(key, { value: data, exp: Date.now() + TTL });
   return data;
 }
+
+async function listAndMap(path: string, params: Record<string, any> = {}) {
+  const key = keyify(path, params);
+  const hit = CACHE.get(key);
+  if (hit && hit.exp > Date.now()) return hit.value;
+  const raw = await tmdb(path, params);
+  const data = (raw.results || []).map((m:any) => ({
+    id: m.id,
+    title: m.title ?? m.name,
+    poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : null,
+    releaseYear: m.release_date ? String(m.release_date).slice(0,4) : null,
+    voteAvg: m.vote_average ?? null
+  }));
+  CACHE.set(key, { value: data, exp: Date.now() + TTL });
+  return data;
+}
+
+export function trending() {
+  return listAndMap('/trending/movie/week');
+}
+export function topRated() {
+  return listAndMap('/movie/top_rated');
+}
+export function nowPlaying() {
+  return listAndMap('/movie/now_playing');
+}

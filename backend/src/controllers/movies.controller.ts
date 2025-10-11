@@ -13,3 +13,16 @@ export async function searchMovies(req: Request, res: Response) {
   });
   res.json(data);
 }
+
+export async function trending(_req: Request, res: Response) {
+  const data = await svc.trending();
+  res.json({ results: data });
+}
+export async function topRated(_req: Request, res: Response) {
+  const data = await svc.topRated();
+  res.json({ results: data });
+}
+export async function nowPlaying(_req: Request, res: Response) {
+  const data = await svc.nowPlaying();
+  res.json({ results: data });
+}
