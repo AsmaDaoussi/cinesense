@@ -1,7 +1,18 @@
+import { useState } from 'react';
+import Home from './routes/Home';
+import Auth from './routes/Auth';
+
 export default function App() {
+  const [currentPage, setCurrentPage] = useState<'home' | 'auth'>('home');
+
+  if (currentPage === 'auth') {
+    return <Auth />;
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-3xl font-bold text-blue-600">Tailwind OK 🚀</h1>
-    </div>
+    <Home
+      onNavigateToLogin={() => setCurrentPage('auth')}
+      onNavigateToSignup={() => setCurrentPage('auth')}
+    />
   );
 }

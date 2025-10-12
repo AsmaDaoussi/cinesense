@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import healthRoutes from './routes/health.routes';
 import moviesRoutes from './routes/movies.routes';
 import { errorHandler } from './middlewares/error';
+import authRoutes from './routes/auth.routes';
 
 const app = express();
 app.use(cors({ origin: 'http://localhost:5173' })); // autorise le front Vite
@@ -12,6 +13,7 @@ app.use(morgan('dev'));
 
 app.use('/health', healthRoutes);
 app.use('/movies', moviesRoutes);
+app.use('/api/auth', authRoutes);
 
 app.use(errorHandler);
 export default app;
