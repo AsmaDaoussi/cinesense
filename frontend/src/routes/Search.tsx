@@ -1,80 +1,88 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from 'react';
-import MovieCard from '../components/MovieCard';
+import { useCallback, useEffect, useState } from "react";
+import SearchBar from "../components/SearchBar";
+import GenreSelect from "../components/GenreSelect";
+import MovieCard from "../components/MovieCard";
+import SkeletonCard from "../components/SkeletonCard";
+import ErrorState from "../components/ErrorState";
+import { useDebounce } from "../hooks/useDebounce";
+import { searchMovies } from "../services/movies";
+import type { Movie } from "../types/movie";
 
-type Movie = { id: number; title: string; poster: string | null; releaseYear: string | null; voteAvg: number | null };
+export default function SearchPage() {
+  const [q, setQ] = useState("");
+  const [year, setYear] = useState("");
+  const [genre, setGenre] = useState("");
 
-export default function Search() {
-    const [q, setQ] = useState('');
-    const [year, setYear] = useState('');
-    const [genre, setGenre] = useState('');
-    const [ai, setAi] = useState(false);
-    const [results, setResults] = useState<Movie[]>([]);
-    const [loading, setLoading] = useState(false);
+  const qDebounced = useDebounce(q, 400);
 
-    const run = async () => {
-        if (!q || q.length < 2) return;
-        setLoading(true);
-        if (ai) {
-            const url = new URL('http://localhost:5000/ai/natural-search');
-            url.searchParams.set('q', q);
-            const data = await fetch(url.toString()).then(r => r.json());
-            const map = (data.results || []).map((m: any) => ({
-                id: m.id,
-                title: m.title ?? m.name,
-                poster: m.poster_path ? `https://image.tmdb.org/t/p/w300${m.poster_path}` : null,
-                releaseYear: m.release_date ? String(m.release_date).slice(0, 4) : null,
-                voteAvg: m.vote_average ?? null
-            }));
-            setResults(map);
-        } else {
-            const url = new URL('http://localhost:5000/movies/search');
-            url.searchParams.set('q', q);
-            if (year) url.searchParams.set('year', year);
-            if (genre) url.searchParams.set('genre', genre);
-            const data = await fetch(url.toString()).then(r => r.json());
-            setResults(data.results || []);
-        }
-        setLoading(false);
-    };
+  const [page, setPage] = useState(1);
+  const [results, setResults] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+  const [hasMore, setHasMore] = useState(false);
 
-    useEffect(() => { /* no-op */ }, []);
+  // reset à chaque changement de filtres/texte
+  useEffect(() => {
+    setPage(1);
+    setResults([]);
+    setHasMore(false);
+    setError(null);
+  }, [qDebounced, year, genre]);
 
-    return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-5xl mx-auto space-y-4">
-                <div className="bg-white p-4 rounded shadow flex gap-2 items-end">
-                    <div className="flex-1">
-                        <label className="block text-sm">Titre</label>
-                        <input className="w-full border p-2 rounded" value={q} onChange={e => setQ(e.target.value)} placeholder="Inception..." />
-                    </div>
-                    <div className="flex items-center gap-2 pb-2">
-                        <input id="ai" type="checkbox" checked={ai} onChange={e => setAi(e.target.checked)} />
-                        <label htmlFor="ai" className="text-sm">Mode IA (langage naturel)</label>
-                    </div>
-                    {!ai && (
-                        <>
-                            <div>
-                                <label className="block text-sm">Année</label>
-                                <input className="w-28 border p-2 rounded" value={year} onChange={e => setYear(e.target.value)} placeholder="2010" />
-                            </div>
-                            <div>
-                                <label className="block text-sm">Genre (id)</label>
-                                <input className="w-32 border p-2 rounded" value={genre} onChange={e => setGenre(e.target.value)} placeholder="28(Action)" />
-                            </div>
-                        </>
-                    )}
-                    <button onClick={run} className="bg-blue-600 text-white px-4 py-2 rounded">Rechercher</button>
-                </div>
+  // fetch
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (qDebounced.trim().length < 2) return;
+      setLoading(true);
+      try {
+        const data = await searchMovies(qDebounced, { year: year || undefined, genre: genre || undefined, page });
+        if (!active) return;
+        setResults(prev => page === 1 ? data.results : [...prev, ...data.results]);
+        setHasMore((data.page ?? 1) < (data.total_pages ?? 1));
+      } catch (e:any) {
+        if (active) setError(e.message ?? "Erreur");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [qDebounced, year, genre, page]);
 
-                {loading ? <p>Recherche...</p> : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        {results.map(m => (
-                            <MovieCard key={m.id} {...m} />
-                        ))}
-                    </div>
-                )}
-            </div>
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) setPage(p => p + 1);
+  }, [loading, hasMore]);
+
+  return (
+    <section className="space-y-4">
+      <SearchBar
+        value={q} onChange={setQ}
+        year={year} onYearChange={setYear}
+        right={<GenreSelect value={genre} onChange={setGenre} />}
+      />
+
+      {error && <ErrorState message={error} />}
+
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+        {results.map(m => <MovieCard key={`${m.id}-${m.poster}`} {...m} />)}
+        {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={`sk-${i}`} />)}
+      </div>
+
+      {/* Bouton charger plus */}
+      {hasMore && !loading && (
+        <div className="flex justify-center">
+          <button
+            onClick={loadMore}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            Charger plus
+          </button>
         </div>
-    );
+      )}
+
+      {!loading && !error && results.length === 0 && qDebounced.trim().length >= 2 && (
+        <p className="rounded-2xl border border-black/5 bg-white p-4 text-sm text-gray-600">Aucun résultat.</p>
+      )}
+    </section>
+  );
 }
