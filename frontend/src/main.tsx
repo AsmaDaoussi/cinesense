@@ -13,6 +13,7 @@ import Layout from "./layout/Layout";
 import SearchPage from "./routes/Search";
 import MovieDetails from "./routes/MovieDetails";
 import FavoritesPage from "./routes/Favorites";
+import Profile from "./routes/Profile";
 import { FavesProvider } from "./contexts/FavesContext";
 import "./index.css";
 
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { index: true, element: <SearchPage /> },
       { path: "title/:id", element: <MovieDetails /> },
       { path: "favorites", element: <FavoritesPage /> },
+      { path: "profile", element: <Profile /> },
       { path: "*", element: <ErrorPage /> },
       { path: '/home', element: <App /> },
   

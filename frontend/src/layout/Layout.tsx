@@ -87,7 +87,7 @@ export default function Layout() {
             </span>
           </NavItem>
           <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-400">Recommandations (après login)</div>
-          <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-400">Profil (après login)</div>
+          <NavItem to="/profile">Profil</NavItem>
         </div>
       </aside>
 
@@ -110,7 +110,7 @@ export default function Layout() {
               </span>
             </NavItem>
             <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-400">Recommandations (après login)</div>
-            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-400">Profil (après login)</div>
+            <NavItem to="/profile">Profil</NavItem>
           </div>
         </aside>
 
