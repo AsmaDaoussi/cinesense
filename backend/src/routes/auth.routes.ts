@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/auth.controller';
-import { requireAuth } from '../middlewares/auth';
+import { authRequired } from '../middlewares/auth';
 
 const r = Router();
 r.post('/signup', ctrl.signup);
 r.post('/login', ctrl.login);
-r.get('/me', requireAuth, ctrl.me);
+r.get('/me', authRequired, ctrl.me);
 
 export default r;

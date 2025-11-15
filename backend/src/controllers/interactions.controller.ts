@@ -1,26 +1,69 @@
-import { Request, Response } from 'express';
-import { Interaction } from '../models/Interaction';
+import { Request, Response } from "express";
+import { Interaction } from "../models/Interaction";
+import { ValidationError } from "sequelize";
 
-export async function addFavorite(req: Request, res: Response) {
-  const userId = (req as any).userId as string;
-  const { titleId } = req.body as { titleId?: number };
-  if (!titleId) return res.status(400).json({ error: 'titleId required' });
-  await Interaction.upsert({ userId, titleId, kind: 'watchlist' } as any);
-  res.status(201).json({ ok: true });
-}
+export async function createInteraction(req: Request, res: Response) {
+  try {
+    console.log("*******************************************req",req);
+        console.log("re****************************************s",res);
 
-export async function rate(req: Request, res: Response) {
-  const userId = (req as any).userId as string;
-  const { titleId, rating } = req.body as { titleId?: number; rating?: number };
-  if (!titleId || typeof rating !== 'number') {
-    return res.status(400).json({ error: 'titleId and rating required' });
+    const userId =  (req as any).userId; // JWT middleware
+    const { movieId, type, value, extra } = req.body;
+
+    if (!type) return res.status(400).json({ error: "type is required" });
+
+    // Types autorisés (aligné avec le front)
+    const allowed = [
+      "open_movie",
+      "view",
+      "scroll",
+      "like",
+      "unlike",
+      "rate",
+      "watchlist_add",
+      "watchlist_remove",
+      "trailer",
+      "search_query",
+      "click_reco",
+    ];
+
+    if (!allowed.includes(type)) {
+      return res.status(400).json({ error: "Invalid interaction type" });
+    }
+
+    const interaction = await Interaction.create({
+       userId,
+  titleId: movieId,
+  kind: type,
+  rating: type === "rating" ? value : null,
+  value: type === "scroll" ? value : null,
+  extra: null
+    });
+
+    return res.json({ success: true, interaction });
+
+  } catch (err: any) {
+    console.error("❌ Interaction error:", err);
+
+    if (err instanceof ValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    return res.status(500).json({ error: "Server error" });
   }
-  await Interaction.upsert({ userId, titleId, kind: 'rate', rating } as any);
-  res.status(201).json({ ok: true });
 }
 
-export async function listFavorites(req: Request, res: Response) {
-  const userId = (req as any).userId as string;
-  const items = await Interaction.findAll({ where: { userId, kind: 'watchlist' } });
-  res.json({ items });
+export async function getUserInteractions(req: Request, res: Response) {
+  try {
+    const userId = (req as any).userId;
+    const list = await Interaction.findAll({
+      where: { userId },
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json(list);
+  } catch (err) {
+    console.error("❌ List interactions error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
 }
