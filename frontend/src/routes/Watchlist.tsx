@@ -1,77 +1,47 @@
-// src/routes/Favorites.tsx
-import { useEffect, useMemo, useState } from "react";
+// src/routes/Watchlist.tsx
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getMoviesBulk } from "../services/movies";
 import MovieCard from "../components/MovieCard";
 import SkeletonCard from "../components/SkeletonCard";
 import ErrorState from "../components/ErrorState";
 import type { Movie } from "../types/movie";
 import Swal from "sweetalert2";
-import api from "../services/api"; // vérifie que c'est bien le default export
+import api from "../services/api";
+import { fetchWatchlistIds } from "../services/watchlist";
 
 type SortKey = "added" | "title" | "year";
 
-export default function FavoritesPage() {
-  // Les ids de films favoris viennent du backend
-  const [ids, setIds] = useState<number[]>([]);
-  const [items, setItems] = useState<Movie[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function WatchlistPage() {
   const [sortBy, setSortBy] = useState<SortKey>("added");
 
-  // 🚀 Charger les favoris du user connecté
-  useEffect(() => {
-    let active = true;
+  // 1) On charge juste les IDs (même que WatchChip)
+  const {
+    data: ids = [],
+    isLoading: loadingIds,
+    error: errorIds,
+    refetch,
+  } = useQuery<number[]>({
+    queryKey: ["watchlist"],
+    queryFn: fetchWatchlistIds,
+    staleTime: 60_000,
+  });
 
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // /api/favorites doit renvoyer les favoris DU USER connecté
-        // soit [number, number, ...] soit [{ movieId: number }, ...]
-        const res = await api.get("/api/favorites");
+  // 2) On charge les films à partir des IDs
+  const {
+    data: movies = [],
+    isLoading: loadingMovies,
+    error: errorMovies,
+  } = useQuery<Movie[]>({
+    queryKey: ["watchlist-movies", ids],
+    enabled: ids.length > 0,
+    queryFn: () => getMoviesBulk(ids),
+  });
 
-        if (!active) return;
+  const isLoading = loadingIds || loadingMovies;
+  const error = errorIds || errorMovies;
+  const items = movies;
 
-        let backendIds: number[] = [];
-
-        if (Array.isArray(res.data)) {
-          if (typeof res.data[0] === "number") {
-            backendIds = res.data as number[];
-          } else {
-            backendIds = (res.data as any[]).map((f) => Number(f.movieId));
-          }
-        }
-
-        backendIds = backendIds.filter((n) => !Number.isNaN(n));
-        setIds(backendIds);
-
-        if (!backendIds.length) {
-          setItems([]);
-          return;
-        }
-
-        const data = await getMoviesBulk(backendIds);
-        if (active) setItems(data);
-      } catch (e: any) {
-        if (active) {
-          console.error(e);
-          setError(
-            e?.response?.data?.error ??
-              e?.message ??
-              "Erreur inattendue lors du chargement des favoris"
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []); // charge une seule fois au montage
-
-  // 🧮 Tri des films
   const sorted = useMemo(() => {
     const arr = [...items];
     switch (sortBy) {
@@ -87,21 +57,20 @@ export default function FavoritesPage() {
         break;
       case "added":
       default:
-        // Ajout récent en premier → on se base sur l’ordre des ids
         arr.sort((a, b) => ids.indexOf(b.id) - ids.indexOf(a.id));
         break;
     }
     return arr;
   }, [items, sortBy, ids]);
 
-  // 🧹 Suppression de tous les favoris côté backend
+  // 🧹 Vider toute la watchlist
   const handleClearAll = async () => {
     const result = await Swal.fire({
-      title: "Supprimer tous les favoris ?",
+      title: "Vider la watchlist ?",
       text: "Cette action est irréversible.",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Oui, supprimer",
+      confirmButtonText: "Oui, vider",
       cancelButtonText: "Annuler",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#6b7280",
@@ -110,47 +79,51 @@ export default function FavoritesPage() {
     if (!result.isConfirmed) return;
 
     try {
-      await api.delete("/api/favorites");
-      setIds([]);
-      setItems([]);
+      await api.delete("/api/watchlist");
       await Swal.fire({
-        title: "Supprimé !",
-        text: "Tous vos favoris ont été supprimés.",
+        title: "Vidé !",
+        text: "Votre watchlist est maintenant vide.",
         icon: "success",
         confirmButtonColor: "#16a34a",
       });
-    } catch (e: any) {
+      refetch(); // va remettre ids=[]
+    } catch (e) {
       console.error(e);
       Swal.fire({
         title: "Erreur",
-        text: "Impossible de supprimer vos favoris.",
+        text: "Impossible de vider votre watchlist.",
         icon: "error",
       });
     }
   };
 
-  // ——— état vide
-  if (!ids.length && !loading) {
+  // ——— États vides
+  if (!isLoading && ids.length === 0) {
     return (
       <section className="mx-auto max-w-6xl px-4 py-6">
         <div className="mb-5 flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Mes Favoris</h1>
-          <span className="rounded-full bg-pink-600 px-2.5 py-0.5 text-xs font-medium text-white shadow">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Ma Watchlist
+          </h1>
+          <span className="rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white shadow">
             0
           </span>
         </div>
-        <p className="text-gray-600">Aucun favori pour l’instant.</p>
+        <p className="text-gray-600">
+          Aucun film dans votre watchlist pour l’instant.
+        </p>
       </section>
     );
   }
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-6">
-      {/* Bandeau haut : titre + compteur + actions */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Mes Favoris</h1>
-          <span className="rounded-full bg-pink-600 px-2.5 py-0.5 text-xs font-medium text-white shadow">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Ma Watchlist
+          </h1>
+          <span className="rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white shadow">
             {ids.length}
           </span>
         </div>
@@ -158,11 +131,13 @@ export default function FavoritesPage() {
         <div className="flex items-center gap-2">
           {/* Pills tri */}
           <div className="inline-flex items-center rounded-xl border border-black/10 bg-white/90 p-1 shadow-sm backdrop-blur">
-            {([
-              { key: "added", label: "Ajout" },
-              { key: "title", label: "Titre" },
-              { key: "year", label: "Année" },
-            ] as const).map((opt) => (
+            {(
+              [
+                { key: "added", label: "Ajout" },
+                { key: "title", label: "Titre" },
+                { key: "year", label: "Année" },
+              ] as const
+            ).map((opt) => (
               <button
                 key={opt.key}
                 onClick={() => setSortBy(opt.key)}
@@ -179,12 +154,12 @@ export default function FavoritesPage() {
             ))}
           </div>
 
-          {/* Bouton “Tout supprimer” */}
+          {/* Bouton vider */}
           {ids.length > 0 && (
             <button
               onClick={handleClearAll}
               className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white/80 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition hover:bg-white hover:shadow"
-              title="Tout supprimer"
+              title="Tout vider"
             >
               <svg
                 width="16"
@@ -198,16 +173,20 @@ export default function FavoritesPage() {
                   fill="currentColor"
                 />
               </svg>
-              <span className="hidden sm:inline">Tout supprimer</span>
+              <span className="hidden sm:inline">Tout vider</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* États d’erreur / chargement */}
-      {error && <ErrorState message={error} />}
+      {/* Erreur / chargement / liste */}
+      {error && (
+        <ErrorState
+          message={(error as any)?.message ?? "Erreur de chargement"}
+        />
+      )}
 
-      {loading ? (
+      {isLoading ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
           {Array.from({ length: Math.min(8, ids.length || 8) }).map((_, i) => (
             <SkeletonCard key={i} />
